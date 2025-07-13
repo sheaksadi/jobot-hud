@@ -47,6 +47,7 @@ export interface ExchangeState {
   dexLiquidity: Liquidity[]
   dexPrices: PriceData
   loading: LoadingState
+  connectionCheckInterval: NodeJS.Timeout | null
 }
 
 export const useExchangeStore = defineStore('exchange', {
@@ -73,7 +74,9 @@ export const useExchangeStore = defineStore('exchange', {
       cexPrices: false,
       dexPrices: false,
       allPrices: false
-    }
+    },
+    // Connection monitoring
+    connectionCheckInterval: null
   }),
 
   actions: {
@@ -156,18 +159,76 @@ export const useExchangeStore = defineStore('exchange', {
       ])
     },
 
+    // Check connection status and reconnect if needed
+    checkConnection(): void {
+      if (!this.socket) {
+        console.log('Socket not initialized')
+        return
+      }
+
+      const isActuallyConnected = this.socket.connected
+
+      if (!isActuallyConnected && this.isConnected) {
+        console.log('Socket connection lost, updating state')
+        this.isConnected = false
+      }
+      if (isActuallyConnected) {
+        this.isConnected = true
+      }
+
+      if (!isActuallyConnected) {
+        console.log('Attempting to reconnect socket...')
+        this.socket.connect()
+      }
+    },
+
+    // Start periodic connection monitoring
+    startConnectionMonitoring(): void {
+      // Clear existing interval if any
+      if (this.connectionCheckInterval) {
+        clearInterval(this.connectionCheckInterval)
+      }
+
+      // Check connection every 5 seconds
+      this.connectionCheckInterval = setInterval(() => {
+        this.checkConnection()
+      }, 5000)
+
+      console.log('Connection monitoring started (checking every 5 seconds)')
+    },
+
+    // Stop connection monitoring
+    stopConnectionMonitoring(): void {
+      if (this.connectionCheckInterval) {
+        clearInterval(this.connectionCheckInterval)
+        this.connectionCheckInterval = null
+        console.log('Connection monitoring stopped')
+      }
+    },
+
     // WebSocket connection management
     initializeWebSocket(): void {
       this.socket = socket
 
       this.socket.on('connect', () => {
         this.isConnected = true
-        console.log("connected")
+        console.log("WebSocket connected!")
       })
 
       this.socket.on('disconnect', () => {
         this.isConnected = false
+        console.log("WebSocket disconnected!")
       })
+
+      this.socket.on('reconnect', (attemptNumber) => {
+        console.log(`WebSocket reconnected after ${attemptNumber} attempts!`);
+        this.isConnected = true; // Ensure state is true on reconnect
+      });
+
+      this.socket.on('connect_error', (error) => {
+        console.error("WebSocket connection error:", error.message);
+        this.isConnected = false; // Ensure state is false on error
+      });
 
       // Update liquidity data when received via socket
       this.socket.on('cexLiquidityUpdate', (data: Liquidity[]) => {
@@ -190,6 +251,9 @@ export const useExchangeStore = defineStore('exchange', {
           this.dexPrices[data.currencyPair] = data.price
         }
       })
+
+      // Start connection monitoring after WebSocket is initialized
+      this.startConnectionMonitoring()
     },
 
     // Combined initialization
@@ -198,6 +262,14 @@ export const useExchangeStore = defineStore('exchange', {
       await this.initializeData()
       // Then setup WebSocket for real-time updates
       this.initializeWebSocket()
+    },
+
+    // Cleanup method (call this when component is unmounted or store is destroyed)
+    cleanup(): void {
+      this.stopConnectionMonitoring()
+      if (this.socket) {
+        this.socket.disconnect()
+      }
     },
 
     // Utility method to update server URL

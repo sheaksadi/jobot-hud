@@ -1,9 +1,11 @@
 <script setup>
 import Spread from '@/components/charts/Spread.vue';
 import { useExchangeStore } from "@/stores/exchangesStore.ts"
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
+import { serverUrl } from '@/socket' // Import serverUrl directly
 
 const theme = ref('dark')
+const serverTestResult = ref('Testing...')
 
 const toggleTheme = () => {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
@@ -11,6 +13,24 @@ const toggleTheme = () => {
 
 const exchangeStore = useExchangeStore()
 exchangeStore.initialize()
+
+const testServerConnection = async () => {
+  serverTestResult.value = 'Testing...'
+  try {
+    const response = await fetch(`${serverUrl}/ping`)
+    if (response.ok) {
+      serverTestResult.value = `Success: ${response.status} ${response.statusText}`
+    } else {
+      serverTestResult.value = `Error: ${response.status} ${response.statusText}`
+    }
+  } catch (error) {
+    serverTestResult.value = `Network Error: ${error.message}`
+  }
+}
+
+onMounted(() => {
+  testServerConnection()
+})
 
 // Computed properties for totaled liquidity
 const totalCexLiquidity = computed(() => {
@@ -203,26 +223,28 @@ const formatPrice = (price) => {
               <div>
                 <h3 class="font-medium mb-2" :class="theme === 'dark' ? 'text-gray-300' : 'text-gray-600'">CEX</h3>
                 <div class="space-y-2">
-                  <div class="flex justify-between items-center p-2 rounded-lg" :class="theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'">
-                    <span :class="theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'">USD</span>
-                    <span class="font-mono" :class="theme === 'dark' ? 'text-white' : 'text-gray-900'">{{ formatNumber(totalCexLiquidity.usd) }}</span>
-                  </div>
-                  <div class="flex justify-between items-center p-2 rounded-lg" :class="theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'">
-                    <span :class="theme === 'dark' ? 'text-red-400' : 'text-red-600'">SEI</span>
-                    <span class="font-mono" :class="theme === 'dark' ? 'text-white' : 'text-gray-900'">{{ formatNumber(totalCexLiquidity.sei) }}</span>
+                  <div v-for="liquidity in exchangeStore.cexLiquidity" :key="liquidity.symbol"
+                    class="flex justify-between items-center p-2 rounded-lg" :class="theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'">
+                    <span class="font-medium" :class="[
+                      liquidity.symbol.includes('USD') ? (theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600') :
+                      liquidity.symbol.includes('SEI') ? (theme === 'dark' ? 'text-red-400' : 'text-red-600') : 
+                      (theme === 'dark' ? 'text-gray-400' : 'text-gray-500')
+                    ]">{{ liquidity.symbol }}</span>
+                    <span class="font-mono" :class="theme === 'dark' ? 'text-white' : 'text-gray-900'">{{ formatNumber(liquidity.amount) }}</span>
                   </div>
                 </div>
               </div>
               <div>
                 <h3 class="font-medium mb-2" :class="theme === 'dark' ? 'text-gray-300' : 'text-gray-600'">DEX</h3>
                 <div class="space-y-2">
-                  <div class="flex justify-between items-center p-2 rounded-lg" :class="theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'">
-                    <span :class="theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'">USD</span>
-                    <span class="font-mono" :class="theme === 'dark' ? 'text-white' : 'text-gray-900'">{{ formatNumber(totalDexLiquidity.usd) }}</span>
-                  </div>
-                  <div class="flex justify-between items-center p-2 rounded-lg" :class="theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'">
-                    <span :class="theme === 'dark' ? 'text-red-400' : 'text-red-600'">SEI</span>
-                    <span class="font-mono" :class="theme === 'dark' ? 'text-white' : 'text-gray-900'">{{ formatNumber(totalDexLiquidity.sei) }}</span>
+                  <div v-for="liquidity in exchangeStore.dexLiquidity" :key="liquidity.symbol"
+                    class="flex justify-between items-center p-2 rounded-lg" :class="theme === 'dark' ? 'bg-gray-700' : 'bg-gray-50'">
+                    <span class="font-medium" :class="[
+                      liquidity.symbol.includes('USD') ? (theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600') :
+                      liquidity.symbol.includes('SEI') || liquidity.symbol.includes('WSEI') ? (theme === 'dark' ? 'text-red-400' : 'text-red-600') : 
+                      (theme === 'dark' ? 'text-gray-400' : 'text-gray-500')
+                    ]">{{ liquidity.symbol }}</span>
+                    <span class="font-mono" :class="theme === 'dark' ? 'text-white' : 'text-gray-900'">{{ formatNumber(liquidity.amount) }}</span>
                   </div>
                 </div>
               </div>
@@ -242,11 +264,10 @@ const formatPrice = (price) => {
       </div>
 
       <!-- Spread Chart -->
-      <!--
       <div class="rounded-lg p-6 border" :class="theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200 shadow-sm'">
         <h2 class="text-xl font-semibold mb-4" :class="theme === 'dark' ? 'text-blue-400' : 'text-blue-600'">Spread Analysis</h2>
         <Suspense>
-          <Spread />
+          <Spread :spreads="spreads" :theme="theme" />
           <template #fallback>
             <div class="flex justify-center items-center h-64">
               <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
@@ -254,7 +275,22 @@ const formatPrice = (price) => {
           </template>
         </Suspense>
       </div>
-      -->
+
+      <!-- Debug Section -->
+      <div class="mt-8 p-4 rounded-lg border" :class="theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200 shadow-sm'">
+        <h2 class="text-xl font-semibold mb-4" :class="theme === 'dark' ? 'text-red-400' : 'text-red-600'">Debug Information</h2>
+        <div class="space-y-2 text-sm" :class="theme === 'dark' ? 'text-gray-300' : 'text-gray-700'">
+          <p><strong>WebSocket Connected:</strong> {{ exchangeStore.isConnected }}</p>
+          <p><strong>Server URL:</strong> {{ serverUrl }}</p>
+          <p><strong>Server Connection Test:</strong> {{ serverTestResult }} <button @click="testServerConnection" class="ml-2 px-2 py-1 rounded-md text-xs" :class="theme === 'dark' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-200 hover:bg-blue-300 text-blue-800'">Retest</button></p>
+          <p><strong>Loading States:</strong> {{ JSON.stringify(exchangeStore.loading, null, 2) }}</p>
+          <p><strong>CEX Prices (first 2):</strong> {{ JSON.stringify(Object.entries(exchangeStore.cexPrices).slice(0, 2), null, 2) }}</p>
+          <p><strong>DEX Prices (first 2):</strong> {{ JSON.stringify(Object.entries(exchangeStore.dexPrices).slice(0, 2), null, 2) }}</p>
+          <p><strong>CEX Liquidity (first 2):</strong> {{ JSON.stringify(exchangeStore.cexLiquidity.slice(0, 2), null, 2) }}</p>
+          <p><strong>DEX Liquidity (first 2):</strong> {{ JSON.stringify(exchangeStore.dexLiquidity.slice(0, 2), null, 2) }}</p>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
