@@ -49,6 +49,42 @@ export interface ExchangeState {
   loading: LoadingState
   connectionCheckInterval: NodeJS.Timeout | null
 }
+export interface BotState {
+  // Define the structure of your bot's state object
+  [key: string]: any
+}
+
+export interface BotConfig {
+  // Define the structure of your bot's config object
+  [key: string]: any
+}
+
+export interface LoadingState {
+  cexLiquidity: boolean
+  dexLiquidity: boolean
+  cexPrices: boolean
+  dexPrices: boolean
+  allPrices: boolean
+  bots: boolean
+  botState: boolean
+  botConfig: boolean
+}
+
+export interface ExchangeState {
+  serverUrl: string
+  socket: any
+  isConnected: boolean
+  cexLiquidity: Liquidity[]
+  cexPrice: number | null
+  cexPrices: PriceData
+  dexLiquidity: Liquidity[]
+  dexPrices: PriceData
+  bots: string[]
+  botStates: { [botId: string]: BotState }
+  botConfigs: { [botId: string]: BotConfig }
+  loading: LoadingState
+  connectionCheckInterval: NodeJS.Timeout | null
+}
 
 export const useExchangeStore = defineStore('exchange', {
   state: (): ExchangeState => ({
@@ -67,14 +103,20 @@ export const useExchangeStore = defineStore('exchange', {
       'WSEI-USDC': null,
       'WSEI-USDT': null
     },
-    // Loading states
+    bots: [],
+    botStates: {},
+    botConfigs: {},
     loading: {
       cexLiquidity: false,
       dexLiquidity: false,
       cexPrices: false,
       dexPrices: false,
-      allPrices: false
+      allPrices: false,
+      bots: false,
+      botState: false,
+      botConfig: false
     },
+
     // Connection monitoring
     connectionCheckInterval: null
   }),
@@ -149,16 +191,76 @@ export const useExchangeStore = defineStore('exchange', {
         this.loading.allPrices = false
       }
     },
+    // BOT RELATED HTTP-FUNCTIONS
+    async fetchBots(): Promise<void> {
+      this.loading.bots = true
+      try {
+        const response = await axios.get<string[]>(`${this.serverUrl}/api/v1/bots`)
+        this.bots = response.data
+      } catch (error) {
+        console.error('Error fetching bots:', error)
+      } finally {
+        this.loading.bots = false
+      }
+    },
+
+    async fetchBotState(botId: string): Promise<void> {
+      this.loading.botState = true
+      try {
+        const response = await axios.get<BotState>(`${this.serverUrl}/api/v1/bots/${botId}/state`)
+        this.botStates[botId] = response.data
+      } catch (error) {
+        console.error(`Error fetching state for bot ${botId}:`, error)
+      } finally {
+        this.loading.botState = false
+      }
+    },
+
+    async fetchBotConfig(botId: string): Promise<void> {
+      this.loading.botConfig = true
+      try {
+        const response = await axios.get<BotConfig>(`${this.serverUrl}/api/v1/bots/${botId}/config`)
+        this.botConfigs[botId] = response.data
+      } catch (error) {
+        console.error(`Error fetching config for bot ${botId}:`, error)
+      } finally {
+        this.loading.botConfig = false
+      }
+    },
+
+    async pauseBot(botId: string): Promise<void> {
+      try {
+        await axios.post(`${this.serverUrl}/api/v1/bots/${botId}/pause`)
+      } catch (error) {
+        console.error(`Error pausing bot ${botId}:`, error)
+      }
+    },
+
+    async resumeBot(botId: string): Promise<void> {
+      try {
+        await axios.post(`${this.serverUrl}/api/v1/bots/${botId}/resume`)
+      } catch (error) {
+        console.error(`Error resuming bot ${botId}:`, error)
+      }
+    },
+
+
 
     // Initialize with HTTP data fetch
     async initializeData(): Promise<void> {
       await Promise.all([
         this.fetchCexLiquidity(),
         this.fetchDexLiquidity(),
-        this.fetchAllPrices()
+        this.fetchAllPrices(),
+        this.fetchBots().then(() => {
+          const initialBotDataPromises = this.bots.flatMap(botId => [
+            this.fetchBotState(botId),
+            this.fetchBotConfig(botId)
+          ]);
+          return Promise.all(initialBotDataPromises);
+        })
       ])
     },
-
     // Check connection status and reconnect if needed
     checkConnection(): void {
       if (!this.socket) {
@@ -251,7 +353,14 @@ export const useExchangeStore = defineStore('exchange', {
           this.dexPrices[data.currencyPair] = data.price
         }
       })
+      // BOT RELATED SOCKET EVENTS
+      this.socket.on('botState', (data: { botId: string; state: BotState }) => {
+        console.log(data);
 
+        if (data.botId && data.state) {
+          this.botStates[data.botId] = data.state;
+        }
+      });
       // Start connection monitoring after WebSocket is initialized
       this.startConnectionMonitoring()
     },
