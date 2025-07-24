@@ -21,11 +21,6 @@ const currentView = computed(() => {
   return routes[currentPath.value.slice(1) || '/'] || NotFound
 })
 
-
-
-
-
-
 const greetMsg = ref("");
 const name = ref("");
 
@@ -37,7 +32,11 @@ async function greet() {
 
 <template>
   <main class=" h-screen w-full">
-    <component :is="currentView" />
+    <UApp>
+      <RouterView />
+      <component :is="currentView" />
+    </UApp>
+
   </main>
 </template>
 

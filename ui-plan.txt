@@ -1,0 +1,29 @@
+A bot is one algorithm instance / config running on one pair of coins.
+
+For each "Bot":
+
+General Control:
+    Actions to start/stop
+    State view
+    config view/edit
+
+Market Overview:
+    CEX Price,
+    DEX Prices
+
+    Arbitrage Opportunities/Spread
+
+    Liquidity Distribution
+
+    Total COIN1
+    Total COIN2
+
+    CEX Holdings....
+    DEX Holding....
+
+Arbitrage View:
+    Currently Placed orders (with visual representation relative to current prices)
+    Indicator when order got executed, showing currently queued reverse trades, executed reverse trades...
+
+    Past 5 trades with their respective reverse trades (summary with volume, spread, profit...)
+    Link to full Log/History view where all past executions with their reverse trades can be explored.
