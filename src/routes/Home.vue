@@ -111,6 +111,30 @@ const formatPrice = (price) => {
   if (price === null || price === undefined) return '0.0000'
   return Number(price).toFixed(4)
 }
+
+const getCexPriceForSpread = (spreadPair) => {
+  const cexPair = spreadPair.split(' / ')[0]
+  const price = exchangeStore.cexPrices[cexPair]
+  return formatPrice(price)
+}
+
+const getDexPriceForSpread = (spreadPair) => {
+  const dexPair = spreadPair.split(' / ')[1]
+  const price = exchangeStore.dexPrices[dexPair]
+  return formatPrice(price)
+}
+
+const getPriceDifferenceForSpread = (spreadPair) => {
+  const cexPair = spreadPair.split(' / ')[0]
+  const dexPair = spreadPair.split(' / ')[1]
+  const cexPrice = exchangeStore.cexPrices[cexPair]
+  const dexPrice = exchangeStore.dexPrices[dexPair]
+
+  if (!cexPrice || !dexPrice) return '0.0000'
+
+  const difference = Math.abs(cexPrice - dexPrice)
+  return formatPrice(difference)
+}
 </script>
 
 <template>
@@ -391,16 +415,34 @@ const formatPrice = (price) => {
                   </div>
                   <div v-else class="space-y-2">
                     <div v-for="spread in spreads" :key="spread.pair" 
-                         class="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-700/50">
-                      <div>
-                        <div class="font-medium text-sm">{{ spread.pair.split(' / ')[0] }}</div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">vs {{ spread.pair.split(' / ')[1] }}</div>
+                         class="p-3 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-700/50">
+                      <div class="flex items-center justify-between mb-2">
+                        <div>
+                          <div class="font-medium text-sm">{{ spread.pair.split(' / ')[0] }}</div>
+                          <div class="text-xs text-gray-500 dark:text-gray-400">vs {{ spread.pair.split(' / ')[1] }}</div>
+                        </div>
+                        <div class="text-right">
+                          <div class="font-mono font-bold text-amber-600 dark:text-amber-400">{{ (spread.value * 100).toFixed(2) }}%</div>
+                          <UBadge :color="Math.abs(spread.value) > 0.01 ? 'amber' : 'gray'" variant="soft" size="xs">
+                            {{ Math.abs(spread.value) > 0.01 ? 'Opportunity' : 'Neutral' }}
+                          </UBadge>
+                        </div>
                       </div>
-                      <div class="text-right">
-                        <div class="font-mono font-bold text-amber-600 dark:text-amber-400">{{ (spread.value * 100).toFixed(2) }}%</div>
-                        <UBadge :color="Math.abs(spread.value) > 0.01 ? 'amber' : 'gray'" variant="soft" size="xs">
-                          {{ Math.abs(spread.value) > 0.01 ? 'Opportunity' : 'Neutral' }}
-                        </UBadge>
+                      <div class="flex items-center justify-between text-xs">
+                        <div class="flex items-center space-x-4">
+                          <div class="text-gray-600 dark:text-gray-400">
+                            <span class="text-blue-600 dark:text-blue-400">CEX:</span>
+                            <span class="font-mono ml-1">${{ getCexPriceForSpread(spread.pair) }}</span>
+                          </div>
+                          <div class="text-gray-600 dark:text-gray-400">
+                            <span class="text-purple-600 dark:text-purple-400">DEX:</span>
+                            <span class="font-mono ml-1">${{ getDexPriceForSpread(spread.pair) }}</span>
+                          </div>
+                        </div>
+                        <div class="text-gray-500 dark:text-gray-400">
+                          <span>Diff:</span>
+                          <span class="font-mono ml-1">${{ getPriceDifferenceForSpread(spread.pair) }}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
