@@ -1,7 +1,7 @@
 <script setup>
 import Spread from '@/components/charts/Spread.vue'
 import { useExchangeStore } from '@/stores/exchangesStore.ts'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {useColorMode} from "@nuxt/ui/runtime/vue/stubs.js";
 
 const colorMode = useColorMode()
@@ -58,12 +58,35 @@ const spreads = computed(() => {
   return results
 })
 
-const botAccordionItems = computed(() => {
-  return exchangeStore.bots.map((botId) => ({
-    label: botId,
-    botId,
-    slot: 'bot-content'
-  }))
+const firstBotId = computed(() => exchangeStore.bots.length > 0 ? exchangeStore.bots[0] : null)
+const showFullConfig = ref(false)
+
+const tabItems = [
+  { label: 'Control', icon: 'i-heroicons-cog-8-tooth-20-solid' },
+  { label: 'Market', icon: 'i-heroicons-chart-bar-20-solid' },
+  { label: 'Arbitrage', icon: 'i-heroicons-arrows-right-left-20-solid' }
+]
+
+const cexLiquidityWithPercent = computed(() => {
+    const amounts = exchangeStore.cexLiquidity.map(l => l.amount);
+    if (amounts.length === 0) return exchangeStore.cexLiquidity.map(l => ({ ...l, width: 0 }));
+    const max = Math.max(...amounts);
+    if (max === 0) return exchangeStore.cexLiquidity.map(l => ({ ...l, width: 0 }));
+    return exchangeStore.cexLiquidity.map(l => ({
+        ...l,
+        width: (l.amount / max) * 100
+    }))
+})
+
+const dexLiquidityWithPercent = computed(() => {
+    const amounts = exchangeStore.dexLiquidity.map(l => l.amount);
+    if (amounts.length === 0) return exchangeStore.dexLiquidity.map(l => ({ ...l, width: 0 }));
+    const max = Math.max(...amounts);
+    if (max === 0) return exchangeStore.dexLiquidity.map(l => ({ ...l, width: 0 }));
+    return exchangeStore.dexLiquidity.map(l => ({
+        ...l,
+        width: (l.amount / max) * 100
+    }))
 })
 
 const botStateDisplay = (state) => {
@@ -109,268 +132,376 @@ const formatPrice = (price) => {
       </div>
     </header>
 
-    <UPageGrid class="grid-cols-1 lg:grid-cols-3">
-      <!-- Market Overview - Spans 2 columns -->
-      <div class="lg:col-span-2">
-        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-900/20 dark:to-purple-900/20 border border-white/20 dark:border-gray-700/50 backdrop-blur-sm">
-          <!-- Animated background pattern -->
-          <div class="absolute inset-0 opacity-30">
-            <div class="absolute top-0 -left-4 w-72 h-72 bg-purple-300 dark:bg-purple-600 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 animate-blob"></div>
-            <div class="absolute top-0 -right-4 w-72 h-72 bg-yellow-300 dark:bg-yellow-600 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
-            <div class="absolute -bottom-8 left-20 w-72 h-72 bg-pink-300 dark:bg-pink-600 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
-          </div>
-
-          <div class="relative p-6">
-            <!-- Header with market sentiment -->
-            <div class="flex items-center justify-between mb-6">
-              <div class="flex items-center space-x-3">
-                <div class="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
-                  <UIcon name="i-heroicons-chart-bar-20-solid" class="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h2 class="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">Market Overview</h2>
-                  <p class="text-sm text-gray-500 dark:text-gray-400">Real-time price & liquidity analytics</p>
-                </div>
-              </div>
-              <div class="flex items-center space-x-2">
-                <div class="px-3 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700">
-                  <div class="flex items-center space-x-2">
-                    <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                    <span class="text-xs font-medium text-emerald-700 dark:text-emerald-300">Live</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Price Cards Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <!-- CEX Prices -->
-              <div class="space-y-3">
-                <div class="flex items-center space-x-2 mb-3">
-                  <div class="w-8 h-8 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center">
-                    <UIcon name="i-heroicons-building-office-20-solid" class="w-4 h-4 text-white" />
-                  </div>
-                  <h3 class="font-semibold text-gray-900 dark:text-white">Centralized Exchange</h3>
-                </div>
-                <div class="space-y-2">
-                  <div v-for="(price, pair) in exchangeStore.cexPrices" :key="pair" 
-                       class="group relative overflow-hidden rounded-xl bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-white/20 dark:border-gray-700/50 p-4 hover:bg-white/80 dark:hover:bg-gray-800/80 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg">
-                    <div class="flex items-center justify-between">
-                      <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm">
-                          {{ pair.split('-')[0].charAt(0) }}
-                        </div>
-                        <div>
-                          <div class="font-medium text-gray-900 dark:text-white">{{ pair }}</div>
-                          <div class="text-xs text-gray-500 dark:text-gray-400">CEX Price</div>
-                        </div>
-                      </div>
-                      <div class="text-right">
-                        <div class="text-xl font-bold text-gray-900 dark:text-white font-mono">${{ formatPrice(price) }}</div>
-                        <div class="flex items-center space-x-1 mt-1">
-                          <UIcon name="i-heroicons-arrow-trending-up-20-solid" class="w-3 h-3 text-emerald-500" />
-                          <span class="text-xs text-emerald-500 font-medium">+0.25%</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- DEX Prices -->
-              <div class="space-y-3">
-                <div class="flex items-center space-x-2 mb-3">
-                  <div class="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
-                    <UIcon name="i-heroicons-squares-2x2-20-solid" class="w-4 h-4 text-white" />
-                  </div>
-                  <h3 class="font-semibold text-gray-900 dark:text-white">Decentralized Exchange</h3>
-                </div>
-                <div class="space-y-2">
-                  <div v-for="(price, pair) in exchangeStore.dexPrices" :key="pair" 
-                       class="group relative overflow-hidden rounded-xl bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-white/20 dark:border-gray-700/50 p-4 hover:bg-white/80 dark:hover:bg-gray-800/80 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg">
-                    <div class="flex items-center justify-between">
-                      <div class="flex items-center space-x-3">
-                        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-purple-400 to-pink-600 flex items-center justify-center text-white font-bold text-sm">
-                          {{ pair.split('-')[0].charAt(0) }}
-                        </div>
-                        <div>
-                          <div class="font-medium text-gray-900 dark:text-white">{{ pair }}</div>
-                          <div class="text-xs text-gray-500 dark:text-gray-400">DEX Price</div>
-                        </div>
-                      </div>
-                      <div class="text-right">
-                        <div class="text-xl font-bold text-gray-900 dark:text-white font-mono">${{ formatPrice(price) }}</div>
-                        <div class="flex items-center space-x-1 mt-1">
-                          <UIcon name="i-heroicons-arrow-trending-down-20-solid" class="w-3 h-3 text-red-500" />
-                          <span class="text-xs text-red-500 font-medium">-0.12%</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Spread Analysis Section -->
-            <div class="bg-white/40 dark:bg-gray-800/40 backdrop-blur-sm rounded-xl border border-white/20 dark:border-gray-700/50 p-4 mb-6">
-              <div class="flex items-center space-x-2 mb-4">
-                <div class="w-8 h-8 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 flex items-center justify-center">
-                  <UIcon name="i-heroicons-scale-20-solid" class="w-4 h-4 text-white" />
-                </div>
-                <h3 class="font-semibold text-gray-900 dark:text-white">Arbitrage Opportunities</h3>
-              </div>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div v-for="spread in spreads" :key="spread.pair" 
-                     class="group relative overflow-hidden rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-700/50 p-3 hover:shadow-md transition-all duration-300">
-                  <div class="flex items-center justify-between">
-                    <div>
-                      <div class="text-sm font-medium text-gray-900 dark:text-white">{{ spread.pair.split(' / ')[0] }}</div>
-                      <div class="text-xs text-gray-500 dark:text-gray-400">vs {{ spread.pair.split(' / ')[1] }}</div>
-                    </div>
-                    <div class="text-right">
-                      <div class="text-lg font-bold text-amber-600 dark:text-amber-400 font-mono">{{ (spread.value * 100).toFixed(2) }}%</div>
-                      <UBadge :color="Math.abs(spread.value) > 0.01 ? 'amber' : 'gray'" variant="soft" size="xs">
-                        {{ Math.abs(spread.value) > 0.01 ? 'Opportunity' : 'Neutral' }}
-                      </UBadge>
-                    </div>
-                  </div>
-                  <div class="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-300 group-hover:h-2" 
-                       :style="{ width: `${Math.min(Math.abs(spread.value) * 1000, 100)}%` }"></div>
-                </div>
-                <div v-if="spreads.length === 0" class="col-span-2 text-center py-4 text-gray-400 dark:text-gray-500 text-sm">
-                  No arbitrage opportunities detected
-                </div>
-              </div>
-            </div>
-
-            <!-- Liquidity Overview -->
-            <div class="bg-white/40 dark:bg-gray-800/40 backdrop-blur-sm rounded-xl border border-white/20 dark:border-gray-700/50 p-4">
-              <div class="flex items-center space-x-2 mb-4">
-                <div class="w-8 h-8 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 flex items-center justify-center">
-                  <UIcon name="i-heroicons-banknotes-20-solid" class="w-4 h-4 text-white" />
-                </div>
-                <h3 class="font-semibold text-gray-900 dark:text-white">Liquidity Distribution</h3>
-              </div>
-
-              <!-- Total Liquidity Stats -->
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                <div class="text-center p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border border-emerald-200 dark:border-emerald-700/50">
-                  <div class="text-3xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">${{ formatNumber(totalLiquidity.usd) }}</div>
-                  <div class="text-sm text-emerald-700 dark:text-emerald-300 font-medium">Total USD Liquidity</div>
-                  <div class="mt-2 h-2 bg-emerald-200 dark:bg-emerald-800 rounded-full overflow-hidden">
-                    <div class="h-full bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full animate-pulse" style="width: 85%"></div>
-                  </div>
-                </div>
-                <div class="text-center p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-700/50">
-                  <div class="text-3xl font-bold text-blue-600 dark:text-blue-400 font-mono">{{ formatNumber(totalLiquidity.sei) }}</div>
-                  <div class="text-sm text-blue-700 dark:text-blue-300 font-medium">Total SEI Liquidity</div>
-                  <div class="mt-2 h-2 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
-                    <div class="h-full bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full animate-pulse" style="width: 70%"></div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Exchange Breakdown -->
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <h4 class="font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
-                    <div class="w-4 h-4 rounded bg-blue-500 mr-2"></div>
-                    CEX Holdings
-                  </h4>
-                  <div class="space-y-2">
-                    <div v-for="liquidity in exchangeStore.cexLiquidity" :key="liquidity.symbol" 
-                         class="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-gray-700/60 backdrop-blur-sm">
-                      <span class="font-medium text-gray-900 dark:text-white">{{ liquidity.symbol }}</span>
-                      <div class="flex items-center space-x-2">
-                        <span class="font-mono text-sm text-gray-600 dark:text-gray-300">{{ formatNumber(liquidity.amount) }}</span>
-                        <div class="w-12 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                          <div class="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full" 
-                               :style="{ width: `${(liquidity.amount / Math.max(...exchangeStore.cexLiquidity.map(l => l.amount))) * 100}%` }"></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <h4 class="font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
-                    <div class="w-4 h-4 rounded bg-purple-500 mr-2"></div>
-                    DEX Holdings
-                  </h4>
-                  <div class="space-y-2">
-                    <div v-for="liquidity in exchangeStore.dexLiquidity" :key="liquidity.symbol" 
-                         class="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-gray-700/60 backdrop-blur-sm">
-                      <span class="font-medium text-gray-900 dark:text-white">{{ liquidity.symbol }}</span>
-                      <div class="flex items-center space-x-2">
-                        <span class="font-mono text-sm text-gray-600 dark:text-gray-300">{{ formatNumber(liquidity.amount) }}</span>
-                        <div class="w-12 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                          <div class="h-full bg-gradient-to-r from-purple-400 to-purple-600 rounded-full" 
-                               :style="{ width: `${(liquidity.amount / Math.max(...exchangeStore.dexLiquidity.map(l => l.amount))) * 100}%` }"></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+    <div v-if="exchangeStore.loading.bots" class="flex justify-center items-center p-8">
+      <USkeleton class="h-32 w-full" />
+    </div>
+    <div v-else-if="firstBotId">
+      <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-4">
+        <div class="flex items-center gap-3">
+          <h2 class="text-2xl font-bold text-gray-900 dark:text-white font-mono truncate">{{ firstBotId }}</h2>
+        </div>
+        <div class="flex items-center space-x-2 flex-shrink-0">
+          <UButton icon="i-heroicons-play-20-solid" color="green" variant="soft" @click="exchangeStore.resumeBot(firstBotId)">Resume</UButton>
+          <UButton icon="i-heroicons-pause-20-solid" color="yellow" variant="soft" @click="exchangeStore.pauseBot(firstBotId)">Pause</UButton>
         </div>
       </div>
 
-      <UCard :ui="{ body: { padding: 'p-0 sm:p-0' } }">
-        <template #header><h2 class="text-lg font-semibold text-primary">Bot Control</h2></template>
-        <div v-if="exchangeStore.loading.bots">
-          <div class="p-4"><USkeleton class="h-12 w-full" v-for="i in 3" :key="i" /></div>
-        </div>
-        <div v-else-if="exchangeStore.bots.length === 0" class="text-center py-4 text-gray-500 dark:text-gray-400">
-          No connected bots found.
-        </div>
-        <UAccordion v-else :items="botAccordionItems">
-          <template #trailing="{ item }">
-            <div class="flex items-center space-x-2">
-              <UButton size="2xs" icon="i-heroicons-play-20-solid" color="green" variant="soft" @click.stop="exchangeStore.resumeBot(item.botId)" />
-              <UButton size="2xs" icon="i-heroicons-pause-20-solid" color="yellow" variant="soft" @click.stop="exchangeStore.pauseBot(item.botId)" />
-            </div>
-          </template>
-          <template #bot-content="{ item }">
-            <div class="p-4 bg-gray-50/50 dark:bg-gray-800/50">
+      <UTabs :items="tabItems" class="w-full">
+        <template #content="{ item }">
+          <UCard :ui="{ body: { base: 'mt-4' } }">
+            <template v-if="item.label === 'Control'">
               <div v-if="exchangeStore.loading.botState || exchangeStore.loading.botConfig" class="flex justify-center items-center p-4">
-                <USkeleton class="h-6 w-1/2" />
+                  <USkeleton class="h-32 w-full" />
               </div>
-              <div v-else class="space-y-3 text-sm">
-                <div v-for="state in botStateDisplay(exchangeStore.botStates[item.botId])" :key="state.label" class="flex justify-between items-center">
-                  <span class="text-gray-500 dark:text-gray-400">{{ state.label }}</span>
-                  <UBadge :color="state.color" variant="soft">
-                    <UIcon v-if="state.icon" :name="state.icon" class="w-4 h-4 mr-1" />
-                    {{ state.value }}
-                  </UBadge>
-                </div>
-                 <div>
-                    <h4 class="font-semibold mb-1 mt-3 text-gray-500 dark:text-gray-400">Config:</h4>
-                    <pre class="p-2 rounded font-mono text-white bg-gray-900 dark:bg-gray-900/50 text-xs">{{ JSON.stringify(exchangeStore.botConfigs[item.botId], null, 2) }}</pre>
+              <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div>
+                    <h3 class="text-lg font-semibold mb-4">Bot State</h3>
+                    <div class="space-y-3 text-sm">
+                      <div v-for="state in botStateDisplay(exchangeStore.botStates[firstBotId])" :key="state.label" class="flex justify-between items-center">
+                        <span class="text-gray-500 dark:text-gray-400">{{ state.label }}</span>
+                        <UBadge :color="state.color" variant="soft">
+                          <UIcon v-if="state.icon" :name="state.icon" class="w-4 h-4 mr-1" />
+                          {{ state.value }}
+                        </UBadge>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between mb-4">
+                      <h3 class="text-lg font-semibold">Configuration</h3>
+                      <UButton size="xs" variant="ghost" @click="showFullConfig = !showFullConfig">
+                        {{ showFullConfig ? 'Hide JSON' : 'Show JSON' }}
+                      </UButton>
+                    </div>
+
+                    <div v-if="!showFullConfig && exchangeStore.botConfigs[firstBotId]" class="space-y-4">
+                      <!-- Bot Overview -->
+                      <UCard :ui="{ body: { padding: 'p-3' } }">
+                        <div class="flex items-center space-x-3 mb-3">
+                          <UIcon name="i-heroicons-identification-20-solid" class="w-5 h-5 text-primary" />
+                          <h4 class="font-medium">Bot Identity</h4>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                          <div class="flex justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">Name:</span>
+                            <span class="font-mono">{{ exchangeStore.botConfigs[firstBotId].botName }}</span>
+                          </div>
+                          <div class="flex justify-between">
+                            <span class="text-gray-500 dark:text-gray-400">UUID:</span>
+                            <span class="font-mono">{{ exchangeStore.botConfigs[firstBotId].uuid }}</span>
+                          </div>
+                        </div>
+                      </UCard>
+
+                      <!-- Exchange Configuration -->
+                      <UCard :ui="{ body: { padding: 'p-3' } }">
+                        <div class="flex items-center space-x-3 mb-3">
+                          <UIcon name="i-heroicons-arrow-path-20-solid" class="w-5 h-5 text-primary" />
+                          <h4 class="font-medium">Exchange Setup</h4>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                          <div class="space-y-2">
+                            <div class="flex items-center space-x-2">
+                              <UIcon name="i-heroicons-building-office-20-solid" class="w-4 h-4 text-blue-500" />
+                              <span class="font-medium">CEX: {{ exchangeStore.botConfigs[firstBotId].cexName }}</span>
+                            </div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400 ml-6">
+                              {{ exchangeStore.botConfigs[firstBotId].defaultPairs?.cexCurrencyPair }}
+                            </div>
+                          </div>
+                          <div class="space-y-2">
+                            <div class="flex items-center space-x-2">
+                              <UIcon name="i-heroicons-squares-2x2-20-solid" class="w-4 h-4 text-purple-500" />
+                              <span class="font-medium">DEX: {{ exchangeStore.botConfigs[firstBotId].dexName }}</span>
+                            </div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400 ml-6">
+                              {{ exchangeStore.botConfigs[firstBotId].defaultPairs?.dexCurrencyPair }} ({{ exchangeStore.botConfigs[firstBotId].dexContract }})
+                            </div>
+                          </div>
+                        </div>
+                      </UCard>
+
+                      <!-- Trading Parameters -->
+                      <UCard :ui="{ body: { padding: 'p-3' } }">
+                        <div class="flex items-center space-x-3 mb-3">
+                          <UIcon name="i-heroicons-cog-6-tooth-20-solid" class="w-5 h-5 text-primary" />
+                          <h4 class="font-medium">Trading Parameters</h4>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                          <div class="text-center p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+                            <div class="font-semibold text-primary">{{ (exchangeStore.botConfigs[firstBotId].dexPriceChangeThreshold * 100).toFixed(2) }}%</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Price Threshold</div>
+                          </div>
+                          <div class="text-center p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+                            <div class="font-semibold text-primary">${{ exchangeStore.botConfigs[firstBotId].liquidityBalanceThreshold }}</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Balance Threshold</div>
+                          </div>
+                          <div class="text-center p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+                            <div class="font-semibold text-primary">{{ (exchangeStore.botConfigs[firstBotId].dexVolumeIncrease * 100).toFixed(2) }}%</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Volume Increase</div>
+                          </div>
+                          <div class="text-center p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+                            <div class="font-semibold text-primary">{{ exchangeStore.botConfigs[firstBotId].botExecutionBufferTime }}ms</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Buffer Time</div>
+                          </div>
+                        </div>
+                      </UCard>
+
+                      <!-- Starting Balances -->
+                      <UCard v-if="exchangeStore.botConfigs[firstBotId].symbolRelations?.startingBalances" :ui="{ body: { padding: 'p-3' } }">
+                        <div class="flex items-center space-x-3 mb-3">
+                          <UIcon name="i-heroicons-banknotes-20-solid" class="w-5 h-5 text-primary" />
+                          <h4 class="font-medium">Starting Balances</h4>
+                        </div>
+                        <div class="space-y-2">
+                          <div v-for="balance in exchangeStore.botConfigs[firstBotId].symbolRelations.startingBalances" :key="balance.currency" 
+                               class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+                            <div class="flex items-center space-x-2">
+                              <div class="w-6 h-6 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-xs font-bold">
+                                {{ balance.currency.charAt(0) }}
+                              </div>
+                              <span class="font-medium">{{ balance.currency }}</span>
+                            </div>
+                            <div class="text-right">
+                              <div class="font-semibold">{{ formatNumber(balance.amount) }}</div>
+                              <div class="text-xs text-gray-500 dark:text-gray-400">±{{ balance.acceptableDeviationPercentage }}%</div>
+                            </div>
+                          </div>
+                        </div>
+                      </UCard>
+
+                      <!-- Trading Orders -->
+                      <UCard v-if="exchangeStore.botConfigs[firstBotId].orders" :ui="{ body: { padding: 'p-3' } }">
+                        <div class="flex items-center space-x-3 mb-3">
+                          <UIcon name="i-heroicons-list-bullet-20-solid" class="w-5 h-5 text-primary" />
+                          <h4 class="font-medium">Trading Orders ({{ exchangeStore.botConfigs[firstBotId].orders.length }})</h4>
+                        </div>
+                        <div class="space-y-2">
+                          <div v-for="(order, index) in exchangeStore.botConfigs[firstBotId].orders" :key="index" 
+                               class="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <div class="flex items-center justify-between mb-2">
+                              <UBadge :color="order.side === 'buy' ? 'green' : 'red'" variant="soft">
+                                <UIcon :name="order.side === 'buy' ? 'i-heroicons-arrow-down-20-solid' : 'i-heroicons-arrow-up-20-solid'" class="w-3 h-3 mr-1" />
+                                {{ order.side.toUpperCase() }}
+                              </UBadge>
+                              <div class="text-xs text-gray-500 dark:text-gray-400">
+                                {{ order.cexCurrencyPair }} ↔ {{ order.dexCurrencyPair }}
+                              </div>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                              <div>
+                                <span class="text-gray-500 dark:text-gray-400">Spread:</span>
+                                <span class="font-mono ml-1">{{ (order.spreadOffset * 100).toFixed(1) }}%</span>
+                              </div>
+                              <div>
+                                <span class="text-gray-500 dark:text-gray-400">Balance:</span>
+                                <span class="font-mono ml-1">{{ (order.balanceSpreadOffset * 100).toFixed(1) }}%</span>
+                              </div>
+                              <div>
+                                <span class="text-gray-500 dark:text-gray-400">Min Vol:</span>
+                                <span class="font-mono ml-1">${{ order.minTradeVolume }}</span>
+                              </div>
+                              <div>
+                                <span class="text-gray-500 dark:text-gray-400">Max Vol:</span>
+                                <span class="font-mono ml-1">${{ order.maxTradeVolume }}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </UCard>
+                    </div>
+
+                    <div v-else-if="showFullConfig">
+                      <pre class="p-4 rounded-lg font-mono text-white bg-gray-900 dark:bg-gray-800 text-xs overflow-x-auto">{{ JSON.stringify(exchangeStore.botConfigs[firstBotId], null, 2) }}</pre>
+                    </div>
                   </div>
               </div>
-            </div>
-          </template>
-        </UAccordion>
-      </UCard>
-    </UPageGrid>
+            </template>
+            <template v-if="item.label === 'Market'">
+              <div class="space-y-4">
+                <!-- Current Prices -->
+                <UCard :ui="{ body: { padding: 'p-3' } }">
+                  <div class="flex items-center space-x-3 mb-3">
+                    <UIcon name="i-heroicons-currency-dollar-20-solid" class="w-5 h-5 text-primary" />
+                    <h4 class="font-medium">Current Prices</h4>
+                  </div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- CEX Prices -->
+                    <div>
+                      <div class="flex items-center space-x-2 mb-3">
+                        <UIcon name="i-heroicons-building-office-20-solid" class="w-4 h-4 text-blue-500" />
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Centralized Exchange</span>
+                      </div>
+                      <div class="space-y-2">
+                        <div v-for="(price, pair) in exchangeStore.cexPrices" :key="pair" 
+                             class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+                          <div class="flex items-center space-x-2">
+                            <div class="w-6 h-6 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold">
+                              {{ pair.split('-')[0].charAt(0) }}
+                            </div>
+                            <span class="font-medium text-sm">{{ pair }}</span>
+                          </div>
+                          <div class="text-right">
+                            <div class="font-mono font-semibold">${{ formatPrice(price) }}</div>
+                            <div class="flex items-center space-x-1 text-xs">
+                              <UIcon name="i-heroicons-arrow-trending-up-20-solid" class="w-3 h-3 text-emerald-500" />
+                              <span class="text-emerald-500">+0.25%</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-    <UCard class="mt-8">
-       <template #header>
-        <h2 class="text-xl font-semibold text-primary">Spread Analysis</h2>
-       </template>
-      <Suspense>
-        <Spread :spreads="spreads" :theme="isDark ? 'dark' : 'light'" />
-        <template #fallback>
-          <div class="flex justify-center items-center h-64">
-            <USkeleton class="h-full w-full" />
-          </div>
+                    <!-- DEX Prices -->
+                    <div>
+                      <div class="flex items-center space-x-2 mb-3">
+                        <UIcon name="i-heroicons-squares-2x2-20-solid" class="w-4 h-4 text-purple-500" />
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Decentralized Exchange</span>
+                      </div>
+                      <div class="space-y-2">
+                        <div v-for="(price, pair) in exchangeStore.dexPrices" :key="pair" 
+                             class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+                          <div class="flex items-center space-x-2">
+                            <div class="w-6 h-6 rounded-full bg-gradient-to-r from-purple-400 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                              {{ pair.split('-')[0].charAt(0) }}
+                            </div>
+                            <span class="font-medium text-sm">{{ pair }}</span>
+                          </div>
+                          <div class="text-right">
+                            <div class="font-mono font-semibold">${{ formatPrice(price) }}</div>
+                            <div class="flex items-center space-x-1 text-xs">
+                              <UIcon name="i-heroicons-arrow-trending-down-20-solid" class="w-3 h-3 text-red-500" />
+                              <span class="text-red-500">-0.12%</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </UCard>
+
+                <!-- Arbitrage Opportunities -->
+                <UCard :ui="{ body: { padding: 'p-3' } }">
+                  <div class="flex items-center space-x-3 mb-3">
+                    <UIcon name="i-heroicons-scale-20-solid" class="w-5 h-5 text-primary" />
+                    <h4 class="font-medium">Arbitrage Opportunities</h4>
+                  </div>
+                  <div v-if="spreads.length === 0" class="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+                    No arbitrage opportunities detected
+                  </div>
+                  <div v-else class="space-y-2">
+                    <div v-for="spread in spreads" :key="spread.pair" 
+                         class="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-700/50">
+                      <div>
+                        <div class="font-medium text-sm">{{ spread.pair.split(' / ')[0] }}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">vs {{ spread.pair.split(' / ')[1] }}</div>
+                      </div>
+                      <div class="text-right">
+                        <div class="font-mono font-bold text-amber-600 dark:text-amber-400">{{ (spread.value * 100).toFixed(2) }}%</div>
+                        <UBadge :color="Math.abs(spread.value) > 0.01 ? 'amber' : 'gray'" variant="soft" size="xs">
+                          {{ Math.abs(spread.value) > 0.01 ? 'Opportunity' : 'Neutral' }}
+                        </UBadge>
+                      </div>
+                    </div>
+                  </div>
+                </UCard>
+
+                <!-- Liquidity Overview -->
+                <UCard :ui="{ body: { padding: 'p-3' } }">
+                  <div class="flex items-center space-x-3 mb-3">
+                    <UIcon name="i-heroicons-banknotes-20-solid" class="w-5 h-5 text-primary" />
+                    <h4 class="font-medium">Liquidity Overview</h4>
+                  </div>
+
+                  <!-- Total Liquidity -->
+                  <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="text-center p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50">
+                      <div class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">${{ formatNumber(totalLiquidity.usd) }}</div>
+                      <div class="text-xs text-emerald-700 dark:text-emerald-300">Total USD</div>
+                    </div>
+                    <div class="text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50">
+                      <div class="text-2xl font-bold text-blue-600 dark:text-blue-400 font-mono">{{ formatNumber(totalLiquidity.sei) }}</div>
+                      <div class="text-xs text-blue-700 dark:text-blue-300">Total SEI</div>
+                    </div>
+                  </div>
+
+                  <!-- Exchange Holdings -->
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <div class="flex items-center space-x-2 mb-2">
+                        <div class="w-3 h-3 rounded bg-blue-500"></div>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">CEX Holdings</span>
+                      </div>
+                      <div class="space-y-2">
+                        <div v-for="liquidity in cexLiquidityWithPercent" :key="liquidity.symbol" 
+                             class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+                          <span class="font-medium text-sm">{{ liquidity.symbol }}</span>
+                          <div class="flex items-center space-x-2">
+                            <span class="font-mono text-sm">{{ formatNumber(liquidity.amount) }}</span>
+                            <div class="w-8 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                              <div class="h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full" :style="{ width: `${liquidity.width}%` }"></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <div class="flex items-center space-x-2 mb-2">
+                        <div class="w-3 h-3 rounded bg-purple-500"></div>
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">DEX Holdings</span>
+                      </div>
+                      <div class="space-y-2">
+                        <div v-for="liquidity in dexLiquidityWithPercent" :key="liquidity.symbol" 
+                             class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+                          <span class="font-medium text-sm">{{ liquidity.symbol }}</span>
+                          <div class="flex items-center space-x-2">
+                            <span class="font-mono text-sm">{{ formatNumber(liquidity.amount) }}</span>
+                            <div class="w-8 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                              <div class="h-full bg-gradient-to-r from-purple-400 to-purple-600 rounded-full" :style="{ width: `${liquidity.width}%` }"></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </UCard>
+
+                <!-- Spread Analysis Chart -->
+                <UCard>
+                  <template #header>
+                    <div class="flex items-center space-x-3">
+                      <UIcon name="i-heroicons-chart-bar-20-solid" class="w-5 h-5 text-primary" />
+                      <h4 class="font-medium">Spread Analysis</h4>
+                    </div>
+                  </template>
+                  <Suspense>
+                    <Spread :spreads="spreads" :theme="isDark ? 'dark' : 'light'" />
+                    <template #fallback>
+                      <div class="flex justify-center items-center h-64">
+                        <USkeleton class="h-full w-full" />
+                      </div>
+                    </template>
+                  </Suspense>
+                </UCard>
+              </div>
+            </template>
+            <template v-if="item.label === 'Arbitrage'">
+              <div class="text-center p-8">
+                <UIcon name="i-heroicons-wrench-screwdriver-20-solid" class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500" />
+                <h3 class="mt-4 text-lg font-semibold text-gray-900 dark:text-white">Arbitrage View</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">This section is under construction.</p>
+              </div>
+            </template>
+          </UCard>
         </template>
-      </Suspense>
-    </UCard>
+      </UTabs>
 
+    </div>
+    <div v-else class="text-center py-16">
+      <UIcon name="i-heroicons-wifi-off" class="mx-auto h-12 w-12 text-gray-400" />
+      <h3 class="mt-2 text-sm font-semibold text-gray-900 dark:text-white">No connected bots</h3>
+      <p class="mt-1 text-sm text-gray-500">Waiting for bots to connect to the server.</p>
+    </div>
   </UContainer>
 </template>
 
