@@ -1,90 +1,7 @@
 import { defineStore } from 'pinia'
 import { socket, serverUrl } from '../socket'
 import axios from 'axios'
-
-// Types
-export interface Liquidity {
-  amount: number
-  symbol: string
-}
-
-export interface LiquidityResponse {
-  exchange: string
-  liquidity: Liquidity[]
-  type: 'cex' | 'dex'
-}
-
-export interface PriceData {
-  [key: string]: number | null
-}
-
-export interface AllPricesResponse {
-  cex: PriceData
-  dex: PriceData
-}
-
-export interface PriceUpdateData {
-  currencyPair: string
-  exchange: string
-  price: number
-}
-
-export interface LoadingState {
-  cexLiquidity: boolean
-  dexLiquidity: boolean
-  cexPrices: boolean
-  dexPrices: boolean
-  allPrices: boolean
-}
-
-export interface ExchangeState {
-  serverUrl: string
-  socket: any
-  isConnected: boolean
-  cexLiquidity: Liquidity[]
-  cexPrice: number | null
-  cexPrices: PriceData
-  dexLiquidity: Liquidity[]
-  dexPrices: PriceData
-  loading: LoadingState
-  connectionCheckInterval: NodeJS.Timeout | null
-}
-export interface BotState {
-  // Define the structure of your bot's state object
-  [key: string]: any
-}
-
-export interface BotConfig {
-  // Define the structure of your bot's config object
-  [key: string]: any
-}
-
-export interface LoadingState {
-  cexLiquidity: boolean
-  dexLiquidity: boolean
-  cexPrices: boolean
-  dexPrices: boolean
-  allPrices: boolean
-  bots: boolean
-  botState: boolean
-  botConfig: boolean
-}
-
-export interface ExchangeState {
-  serverUrl: string
-  socket: any
-  isConnected: boolean
-  cexLiquidity: Liquidity[]
-  cexPrice: number | null
-  cexPrices: PriceData
-  dexLiquidity: Liquidity[]
-  dexPrices: PriceData
-  bots: string[]
-  botStates: { [botId: string]: BotState }
-  botConfigs: { [botId: string]: BotConfig }
-  loading: LoadingState
-  connectionCheckInterval: NodeJS.Timeout | null
-}
+import { Liquidity, LiquidityResponse, PriceData, AllPricesResponse, PriceUpdateData, BotState, BotConfig, LoadingState, ExchangeState } from '../types/exchange'
 
 export const useExchangeStore = defineStore('exchange', {
   state: (): ExchangeState => ({
@@ -99,10 +16,7 @@ export const useExchangeStore = defineStore('exchange', {
     cexPrices: {},
     // DEX data
     dexLiquidity: [],
-    dexPrices: {
-      'WSEI-USDC': null,
-      'WSEI-USDT': null
-    },
+    dexPrices: {},
     bots: [],
     botStates: {},
     botConfigs: {},
@@ -123,10 +37,10 @@ export const useExchangeStore = defineStore('exchange', {
 
   actions: {
     // HTTP fetching functions
-    async fetchCexLiquidity(): Promise<void> {
+    async fetchCexLiquidity(botId: string): Promise<void> {
       this.loading.cexLiquidity = true
       try {
-        const response = await axios.get<LiquidityResponse>(`${this.serverUrl}/api/v1/liquidities/cex`)
+        const response = await axios.get<LiquidityResponse>(`${this.serverUrl}/api/v1/bots/${botId}/liquidities/cex`)
         this.cexLiquidity = response.data.liquidity
       } catch (error) {
         console.error('Error fetching CEX liquidity:', error)
@@ -135,10 +49,10 @@ export const useExchangeStore = defineStore('exchange', {
       }
     },
 
-    async fetchDexLiquidity(): Promise<void> {
+    async fetchDexLiquidity(botId: string): Promise<void> {
       this.loading.dexLiquidity = true
       try {
-        const response = await axios.get<LiquidityResponse>(`${this.serverUrl}/api/v1/liquidities/dex`)
+        const response = await axios.get<LiquidityResponse>(`${this.serverUrl}/api/v1/bots/${botId}/liquidities/dex`)
         this.dexLiquidity = response.data.liquidity
       } catch (error) {
         console.error('Error fetching DEX liquidity:', error)
@@ -147,13 +61,13 @@ export const useExchangeStore = defineStore('exchange', {
       }
     },
 
-    async fetchCexPrices(): Promise<void> {
+    async fetchCexPrices(botId: string): Promise<void> {
       this.loading.cexPrices = true
       try {
-        const response = await axios.get<PriceData>(`${this.serverUrl}/api/v1/prices/cex`)
-        this.cexPrices = response.data
+        const response = await axios.get<PriceData>(`${this.serverUrl}/api/v1/bots/${botId}/prices/cex`)
+        this.cexPrices = response.data || {}
         // Also update the single cexPrice for SEI-USDT
-        if (response.data['SEI-USDT']) {
+        if (response.data && response.data['SEI-USDT']) {
           this.cexPrice = response.data['SEI-USDT']
         }
       } catch (error) {
@@ -163,11 +77,11 @@ export const useExchangeStore = defineStore('exchange', {
       }
     },
 
-    async fetchDexPrices(): Promise<void> {
+    async fetchDexPrices(botId: string): Promise<void> {
       this.loading.dexPrices = true
       try {
-        const response = await axios.get<PriceData>(`${this.serverUrl}/api/v1/prices/dex`)
-        this.dexPrices = { ...this.dexPrices, ...response.data }
+        const response = await axios.get<PriceData>(`${this.serverUrl}/api/v1/bots/${botId}/prices/dex`)
+        this.dexPrices = response.data || {}
       } catch (error) {
         console.error('Error fetching DEX prices:', error)
       } finally {
@@ -175,14 +89,14 @@ export const useExchangeStore = defineStore('exchange', {
       }
     },
 
-    async fetchAllPrices(): Promise<void> {
+    async fetchAllPrices(botId: string): Promise<void> {
       this.loading.allPrices = true
       try {
-        const response = await axios.get<AllPricesResponse>(`${this.serverUrl}/api/v1/prices`)
-        this.cexPrices = response.data.cex
-        this.dexPrices = { ...this.dexPrices, ...response.data.dex }
+        const response = await axios.get<AllPricesResponse>(`${this.serverUrl}/api/v1/bots/${botId}/prices`)
+        this.cexPrices = response.data.cex || {}
+        this.dexPrices = { ...this.dexPrices, ...(response.data.dex || {}) }
         // Update single cexPrice for SEI-USDT
-        if (response.data.cex['SEI-USDT']) {
+        if (response.data.cex && response.data.cex['SEI-USDT']) {
           this.cexPrice = response.data.cex['SEI-USDT']
         }
       } catch (error) {
@@ -248,18 +162,25 @@ export const useExchangeStore = defineStore('exchange', {
 
     // Initialize with HTTP data fetch
     async initializeData(): Promise<void> {
-      await Promise.all([
-        this.fetchCexLiquidity(),
-        this.fetchDexLiquidity(),
-        this.fetchAllPrices(),
-        this.fetchBots().then(() => {
-          const initialBotDataPromises = this.bots.flatMap(botId => [
-            this.fetchBotState(botId),
-            this.fetchBotConfig(botId)
-          ]);
-          return Promise.all(initialBotDataPromises);
-        })
-      ])
+      await this.fetchBots();
+
+      const botDataPromises = this.bots.flatMap(botId => [
+        this.fetchBotState(botId),
+        this.fetchBotConfig(botId)
+      ]);
+
+      if (this.bots.length > 0) {
+        const firstBotId = this.bots[0];
+        await Promise.all([
+          this.fetchCexLiquidity(firstBotId),
+          this.fetchDexLiquidity(firstBotId),
+          this.fetchCexPrices(firstBotId),
+          this.fetchDexPrices(firstBotId),
+          ...botDataPromises
+        ]);
+      } else {
+        await Promise.all(botDataPromises);
+      }
     },
     // Check connection status and reconnect if needed
     checkConnection(): void {

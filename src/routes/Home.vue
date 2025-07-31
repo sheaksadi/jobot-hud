@@ -45,15 +45,18 @@ const totalLiquidity = computed(() => ({
 
 const spreads = computed(() => {
   const results = []
-  const cexPrice = exchangeStore.cexPrices['SEI-USDT']
-  const dexPrice1 = exchangeStore.dexPrices['WSEI-USDC']
-  const dexPrice2 = exchangeStore.dexPrices['WSEI-USDT']
+  const cexPairs = Object.keys(exchangeStore.cexPrices)
+  const dexPairs = Object.keys(exchangeStore.dexPrices)
 
-  if (cexPrice && dexPrice1) {
-    results.push({ pair: 'SEI-USDT / WSEI-USDC', value: cexPrice / dexPrice1 - 1 })
-  }
-  if (cexPrice && dexPrice2) {
-    results.push({ pair: 'SEI-USDT / WSEI-USDT', value: cexPrice / dexPrice2 - 1 })
+  for (const cexPair of cexPairs) {
+    for (const dexPair of dexPairs) {
+      const cexPrice = exchangeStore.cexPrices[cexPair]
+      const dexPrice = exchangeStore.dexPrices[dexPair]
+
+      if (cexPrice !== null && cexPrice !== undefined && dexPrice !== null && dexPrice !== undefined) {
+        results.push({ pair: `${cexPair} / ${dexPair}`, value: cexPrice / dexPrice - 1 })
+      }
+    }
   }
   return results
 })
@@ -87,6 +90,19 @@ const dexLiquidityWithPercent = computed(() => {
         ...l,
         width: (l.amount / max) * 100
     }))
+})
+
+// Fixed computed properties for displaying prices
+const cexPricesArray = computed(() => {
+  return Object.entries(exchangeStore.cexPrices)
+    .filter(([pair, price]) => price !== null && price !== undefined)
+    .map(([pair, price]) => ({ pair, price }))
+})
+
+const dexPricesArray = computed(() => {
+  return Object.entries(exchangeStore.dexPrices)
+    .filter(([pair, price]) => price !== null && price !== undefined)
+    .map(([pair, price]) => ({ pair, price }))
 })
 
 const botStateDisplay = (state) => {
@@ -298,7 +314,7 @@ const getPriceDifferenceForSpread = (spreadPair) => {
                       <UCard v-if="exchangeStore.botConfigs[firstBotId].orders" :ui="{ body: { padding: 'p-3' } }">
                         <div class="flex items-center space-x-3 mb-3">
                           <UIcon name="i-heroicons-list-bullet-20-solid" class="w-5 h-5 text-primary" />
-                          <h4 class="font-medium">Trading Orders ({{ exchangeStore.botConfigs[firstBotId].orders.length }})</h4>
+                          <h4 class="font-medium">Trading Orders ({{ exchangeStore.botConfigs[firstBotId].orders?.length || 0 }})</h4>
                         </div>
                         <div class="space-y-2">
                           <div v-for="(order, index) in exchangeStore.botConfigs[firstBotId].orders" :key="index" 
@@ -357,20 +373,19 @@ const getPriceDifferenceForSpread = (spreadPair) => {
                         <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Centralized Exchange</span>
                       </div>
                       <div class="space-y-2">
-                        <div v-for="(price, pair) in exchangeStore.cexPrices" :key="pair" 
+                        <div v-if="cexPricesArray.length === 0" class="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+                          No CEX prices available
+                        </div>
+                        <div v-for="priceData in cexPricesArray" :key="priceData.pair" 
                              class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
                           <div class="flex items-center space-x-2">
                             <div class="w-6 h-6 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold">
-                              {{ pair.split('-')[0].charAt(0) }}
+                              {{ priceData.pair.split('-')[0].charAt(0) }}
                             </div>
-                            <span class="font-medium text-sm">{{ pair }}</span>
+                            <span class="font-medium text-sm">{{ priceData.pair }}</span>
                           </div>
                           <div class="text-right">
-                            <div class="font-mono font-semibold">${{ formatPrice(price) }}</div>
-                            <div class="flex items-center space-x-1 text-xs">
-                              <UIcon name="i-heroicons-arrow-trending-up-20-solid" class="w-3 h-3 text-emerald-500" />
-                              <span class="text-emerald-500">+0.25%</span>
-                            </div>
+                            <div class="font-mono font-semibold">${{ formatPrice(priceData.price) }}</div>
                           </div>
                         </div>
                       </div>
@@ -383,20 +398,19 @@ const getPriceDifferenceForSpread = (spreadPair) => {
                         <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Decentralized Exchange</span>
                       </div>
                       <div class="space-y-2">
-                        <div v-for="(price, pair) in exchangeStore.dexPrices" :key="pair" 
+                        <div v-if="dexPricesArray.length === 0" class="text-center py-4 text-sm text-gray-500 dark:text-gray-400">
+                          No DEX prices available
+                        </div>
+                        <div v-for="priceData in dexPricesArray" :key="priceData.pair" 
                              class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
                           <div class="flex items-center space-x-2">
                             <div class="w-6 h-6 rounded-full bg-gradient-to-r from-purple-400 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
-                              {{ pair.split('-')[0].charAt(0) }}
+                              {{ priceData.pair.split('-')[0].charAt(0) }}
                             </div>
-                            <span class="font-medium text-sm">{{ pair }}</span>
+                            <span class="font-medium text-sm">{{ priceData.pair }}</span>
                           </div>
                           <div class="text-right">
-                            <div class="font-mono font-semibold">${{ formatPrice(price) }}</div>
-                            <div class="flex items-center space-x-1 text-xs">
-                              <UIcon name="i-heroicons-arrow-trending-down-20-solid" class="w-3 h-3 text-red-500" />
-                              <span class="text-red-500">-0.12%</span>
-                            </div>
+                            <div class="font-mono font-semibold">${{ formatPrice(priceData.price) }}</div>
                           </div>
                         </div>
                       </div>
@@ -422,10 +436,8 @@ const getPriceDifferenceForSpread = (spreadPair) => {
                           <div class="text-xs text-gray-500 dark:text-gray-400">vs {{ spread.pair.split(' / ')[1] }}</div>
                         </div>
                         <div class="text-right">
-                          <div class="font-mono font-bold text-amber-600 dark:text-amber-400">{{ (spread.value * 100).toFixed(2) }}%</div>
-                          <UBadge :color="Math.abs(spread.value) > 0.01 ? 'amber' : 'gray'" variant="soft" size="xs">
-                            {{ Math.abs(spread.value) > 0.01 ? 'Opportunity' : 'Neutral' }}
-                          </UBadge>
+                          <div class="font-mono font-bold text-lg text-amber-600 dark:text-amber-400">${{ getPriceDifferenceForSpread(spread.pair) }}</div>
+                          <div class="text-xs text-gray-500 dark:text-gray-400">{{ (spread.value * 100).toFixed(2) }}%</div>
                         </div>
                       </div>
                       <div class="flex items-center justify-between text-xs">
@@ -572,4 +584,3 @@ const getPriceDifferenceForSpread = (spreadPair) => {
   animation-delay: 4s;
 }
 </style>
-
