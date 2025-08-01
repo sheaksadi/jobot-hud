@@ -1,15 +1,21 @@
 <script setup>
 import Spread from '@/components/charts/Spread.vue'
-import { useExchangeStore } from '@/stores/exchangesStore.ts'
+import { useExchangeStore } from '../stores/exchangesStore.js';
+import { useAuthStore } from '../stores/authStore.js';
 import { computed, onMounted, ref } from 'vue'
 import {useColorMode} from "@nuxt/ui/runtime/vue/stubs.js";
 
 const colorMode = useColorMode()
 const exchangeStore = useExchangeStore()
+const authStore = useAuthStore();
 
 onMounted(() => {
   exchangeStore.initialize()
 })
+
+const handleLogout = () => {
+  authStore.logout();
+};
 
 const isDark = computed({
   get: () => colorMode.value === 'dark',
@@ -169,6 +175,7 @@ const getPriceDifferenceForSpread = (spreadPair) => {
         </UBadge>
         <UButton icon="i-heroicons-arrow-path-20-solid" size="sm" color="primary" square variant="solid" @click="refreshData" :loading="Object.values(exchangeStore.loading).some(l => l)" />
         <UButton :icon="isDark ? 'i-heroicons-moon-20-solid' : 'i-heroicons-sun-20-solid'" color="gray" variant="ghost" aria-label="Theme" @click="isDark = !isDark" />
+        <UButton color="primary" variant="solid" @click="handleLogout">Logout</UButton>
       </div>
     </header>
 
@@ -255,7 +262,7 @@ const getPriceDifferenceForSpread = (spreadPair) => {
                               <span class="font-medium">DEX: {{ exchangeStore.botConfigs[firstBotId].dexName }}</span>
                             </div>
                             <div class="text-xs text-gray-500 dark:text-gray-400 ml-6">
-                              {{ exchangeStore.botConfigs[firstBotId].defaultPairs?.dexCurrencyPair }} ({{ exchangeStore.botConfigs[firstBotId].dexContract }})
+                              {{ exchangeStore.botConfigs[firstBotId].dexContract }})
                             </div>
                           </div>
                         </div>

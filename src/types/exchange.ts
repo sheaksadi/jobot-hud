@@ -44,7 +44,6 @@ export interface LoadingState {
 }
 
 export interface ExchangeState {
-  serverUrl: string
   socket: any
   isConnected: boolean
   cexLiquidity: Liquidity[]

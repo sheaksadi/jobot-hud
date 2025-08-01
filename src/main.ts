@@ -1,38 +1,50 @@
 import { createApp } from "vue";
+import { createPinia } from 'pinia';
+import { createRouter, createWebHistory } from 'vue-router';
 import App from "./App.vue";
-import { createPinia } from 'pinia'
-import ui from '@nuxt/ui/vue-plugin'
-import { createRouter, createWebHistory } from 'vue-router'
+import ui from '@nuxt/ui/vue-plugin';
 
-// Example in frontend JavaScript using tauri-plugin-deep-link or similar
-import { onOpenUrl } from 'tauri-plugin-deep-link';
+// Import stores and components
+import { useAuthStore } from './stores/authStore.js';
+import Home from './routes/Home.vue';
+import Login from './routes/Login.vue';
+import Orders from './routes/Orders.vue';
+import NotFound from './routes/NotFound.vue';
 
-onOpenUrl((url) => {
-    // The URL will be "jobot-auth://callback?token=ey..."
-    const urlObject = new URL(url);
-    const token = urlObject.searchParams.get('token');
-
-    if (token) {
-        // You have the token!
-        console.log('Received JWT:', token);
-        // 1. Save the token to secure storage (e.g., tauri-plugin-store).
-        // 2. Update your application's state to reflect that the user is logged in.
-        // 3. Navigate to the main part of your application.
-    }
-});
-const pinia = createPinia()
-const app = createApp(App)
-
+// --- Vue Router Configuration ---
+const routes = [
+    { path: '/', name: 'Home', component: Home, meta: { requiresAuth: true } },
+    { path: '/login', name: 'Login', component: Login },
+    { path: '/orders', name: 'Orders', component: Orders, meta: { requiresAuth: true } },
+    // Catch-all route
+    { path: '/:pathMatch(.*)*', name: 'NotFound', component: NotFound },
+];
 
 const router = createRouter({
-    routes: [],
-    history: createWebHistory()
-})
+    history: createWebHistory(),
+    routes,
+});
 
-app.use(pinia)
-app.use(ui)
+// --- App Initialization ---
+const pinia = createPinia();
+const app = createApp(App);
 
-app.mount('#app')
+// --- Navigation Guard ---
+router.beforeEach((to, from, next) => {
+    // We need to initialize the store here to use it
+    const authStore = useAuthStore(pinia);
 
+    if (to.meta.requiresAuth && !authStore.isLoggedIn) {
+        // If the route requires auth and the user is not logged in, redirect to login
+        next({ name: 'Login' });
+    } else {
+        // Otherwise, proceed as normal
+        next();
+    }
+});
 
+app.use(pinia);
+app.use(router); // Use the router
+app.use(ui);
 
+app.mount('#app');

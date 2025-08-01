@@ -19,4 +19,6 @@ This file provides context to the Gemini AI assistant to ensure it can effective
 - i am using nuxt ui for my app components. please try to use nuxt ui for components and use tailwind for styles
 - Before making any changes, please review the existing code and components to understand the project's structure and coding style.
 - When adding new components, please follow the existing directory structure.
+- Do not run commands like `npm run dev` or tests without explicit permission.
+- Do not make changes to files that were not explicitly requested. If you think a change is needed, ask first.
 

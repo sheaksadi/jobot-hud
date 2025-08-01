@@ -9,6 +9,9 @@
     "core:default",
     "opener:default",
     "deep-link:default",
-    "deep-link:default"
+    "deep-link:default",
+    "shell:default",
+    "opener:default",
+    "opener:default"
   ]
 }
