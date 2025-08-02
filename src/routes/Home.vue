@@ -153,7 +153,6 @@ const trade = ref({
 });
 
 const availablePairs = computed(() => {
-
   return trade.value.exchange === 'cex' 
     ? exchangeStore.cexCurrencyPairs 
     : exchangeStore.dexCurrencyPairs;
@@ -161,9 +160,12 @@ const availablePairs = computed(() => {
 
 let selectedPair = ref(availablePairs.value[0])
 
-watch(() => trade.value.exchange, () => {
-  trade.value.currencyPair = null; // Reset on exchange change
-});
+watch(availablePairs, (newPairs) => {
+    console.log('Available pairs changed:', newPairs[0])
+    if(!selectedPair.value || !newPairs.includes(selectedPair.value)) {
+        selectedPair.value = newPairs[0]
+    }
+}, { immediate: true });
 
 const executeTrade = async () => {
     trade.value.currencyPair = selectedPair.value
