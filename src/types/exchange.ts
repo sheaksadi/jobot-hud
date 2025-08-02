@@ -73,6 +73,8 @@ export interface ExchangeState {
   bots: string[]
   botStates: { [botId: string]: BotState }
   botConfigs: { [botId: string]: BotConfig }
+  cexCurrencyPairs: string[]
+  dexCurrencyPairs: string[]
   loading: LoadingState
   connectionCheckInterval: NodeJS.Timeout | null
 }
