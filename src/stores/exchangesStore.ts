@@ -1,7 +1,10 @@
+import { useLogStore } from './logStore';
 import axiosInstance from '../axios.js';
 import { defineStore } from 'pinia';
 import { socket } from '../socket.js';
-import type { Liquidity, LiquidityResponse, PriceData, AllPricesResponse, PriceUpdateData, BotState, BotConfig, ExchangeState } from '../types/exchange';
+import type { Liquidity, LiquidityResponse, PriceData, AllPricesResponse, PriceUpdateData, BotState, BotConfig, ExchangeState, ManualTradeArg } from '../types/exchange';
+
+import { useLogStore } from './logStore';
 
 export const useExchangeStore = defineStore('exchange', {
   state: (): ExchangeState => ({
@@ -18,6 +21,8 @@ export const useExchangeStore = defineStore('exchange', {
     bots: [],
     botStates: {},
     botConfigs: {},
+    cexCurrencyPairs: [],
+    dexCurrencyPairs: [],
     loading: {
       cexLiquidity: false,
       dexLiquidity: false,
@@ -26,7 +31,8 @@ export const useExchangeStore = defineStore('exchange', {
       allPrices: false,
       bots: false,
       botState: false,
-      botConfig: false
+      botConfig: false,
+      currencyPairs: false
     },
 
     // Connection monitoring
@@ -108,7 +114,11 @@ export const useExchangeStore = defineStore('exchange', {
       this.loading.bots = true
       try {
         const response = await axiosInstance.get<string[]>(`/bots`)
+        console.log('response:', response);
         this.bots = response.data
+        // Initialize log listeners after fetching bots
+        const logStore = useLogStore();
+        logStore.initializeListeners(this.bots);
       } catch (error) {
         console.error('Error fetching bots:', error)
       } finally {
@@ -156,27 +166,56 @@ export const useExchangeStore = defineStore('exchange', {
       }
     },
 
+    async fetchCurrencyPairs(botId: string): Promise<void> {
+      this.loading.currencyPairs = true;
+      try {
+        const response = await axiosInstance.get(`/bots/${botId}/currencyPairs`);
+        console.log('Fetched Currency Pairs:', response.data); // <-- DEBUGGING
+        this.cexCurrencyPairs = response.data.cex || [];
+        this.dexCurrencyPairs = response.data.dex || [];
+      } catch (error) {
+        console.error(`Error fetching currency pairs for bot ${botId}:`, error);
+      } finally {
+        this.loading.currencyPairs = false;
+      }
+    },
+
+    async manualTrade(botId: string, tradeArgs: ManualTradeArg): Promise<any> {
+      try {
+        const response = await axiosInstance.post(`/bots/${botId}/manualTrade`, tradeArgs);
+        return response.data;
+      } catch (error) {
+        console.error('Error executing manual trade:', error);
+        throw error; // Re-throw to be caught in the component
+      }
+    },
+
     // Initialize with HTTP data fetch
     async initializeData(): Promise<void> {
+      console.log('Initializing data...');
       await this.fetchBots();
+
+      if (this.bots.length === 0) {
+        console.warn('No bots found. Aborting data fetch.');
+        return;
+      }
+
+      const firstBotId = this.bots[0];
+      console.log(`Fetching data for bot: ${firstBotId}`); // <-- DEBUGGING
 
       const botDataPromises = this.bots.flatMap(botId => [
         this.fetchBotState(botId),
         this.fetchBotConfig(botId)
       ]);
 
-      if (this.bots.length > 0) {
-        const firstBotId = this.bots[0];
-        await Promise.all([
-          this.fetchCexLiquidity(firstBotId),
-          this.fetchDexLiquidity(firstBotId),
-          this.fetchCexPrices(firstBotId),
-          this.fetchDexPrices(firstBotId),
-          ...botDataPromises
-        ]);
-      } else {
-        await Promise.all(botDataPromises);
-      }
+      await Promise.all([
+        this.fetchCexLiquidity(firstBotId),
+        this.fetchDexLiquidity(firstBotId),
+        this.fetchCexPrices(firstBotId),
+        this.fetchDexPrices(firstBotId),
+        this.fetchCurrencyPairs(firstBotId),
+        ...botDataPromises
+      ]);
     },
     // Check connection status and reconnect if needed
     checkConnection(): void {

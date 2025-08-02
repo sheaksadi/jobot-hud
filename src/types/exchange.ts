@@ -32,6 +32,13 @@ export interface BotConfig {
   [key: string]: any
 }
 
+export type ManualTradeArg = {
+  side: "buy" | "sell"
+  amount: number
+  exchange: "cex" | "dex"
+  currencyPair: string
+};
+
 export interface LoadingState {
   cexLiquidity: boolean
   dexLiquidity: boolean
@@ -41,6 +48,17 @@ export interface LoadingState {
   bots: boolean
   botState: boolean
   botConfig: boolean
+}
+
+export interface LogEntry {
+  timestamp: Date;
+  message: string;
+  data: any | null;
+  color: string | null;
+  type: string | null;
+  source: string;
+  sessionid: string;
+  botid: string | null;
 }
 
 export interface ExchangeState {

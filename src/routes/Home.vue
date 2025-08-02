@@ -2,21 +2,19 @@
 import Spread from '@/components/charts/Spread.vue'
 import { useExchangeStore } from '../stores/exchangesStore.js';
 import { useAuthStore } from '../stores/authStore.js';
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, onUnmounted, reactive, watch } from 'vue'
 import {useColorMode} from "@nuxt/ui/runtime/vue/stubs.js";
+import { useLogStore } from '../stores/logStore.js';
 
 const colorMode = useColorMode()
 const exchangeStore = useExchangeStore()
 const authStore = useAuthStore();
-
-onMounted(() => {
-  exchangeStore.initialize()
-})
+const logStore = useLogStore();
 
 const handleLogout = () => {
   authStore.logout();
 };
-
+const showDropdown = ref(false)
 const isDark = computed({
   get: () => colorMode.value === 'dark',
   set: () => {
@@ -71,9 +69,9 @@ const firstBotId = computed(() => exchangeStore.bots.length > 0 ? exchangeStore.
 const showFullConfig = ref(false)
 
 const tabItems = [
-  { label: 'Control', icon: 'i-heroicons-cog-8-tooth-20-solid' },
   { label: 'Market', icon: 'i-heroicons-chart-bar-20-solid' },
-  { label: 'Arbitrage', icon: 'i-heroicons-arrows-right-left-20-solid' }
+  { label: 'Control', icon: 'i-heroicons-cog-8-tooth-20-solid' },
+  { label: 'Logs', icon: 'i-heroicons-document-text-20-solid' }
 ]
 
 const cexLiquidityWithPercent = computed(() => {
@@ -146,6 +144,55 @@ const getDexPriceForSpread = (spreadPair) => {
   return formatPrice(price)
 }
 
+const trade = ref({
+  exchange: 'cex',
+  side: 'buy',
+  currencyPair: null,
+  amount: null,
+  loading: false
+});
+
+const availablePairs = computed(() => {
+
+  return trade.value.exchange === 'cex' 
+    ? exchangeStore.cexCurrencyPairs 
+    : exchangeStore.dexCurrencyPairs;
+});
+
+let selectedPair = ref(availablePairs.value[0])
+
+watch(() => trade.value.exchange, () => {
+  trade.value.currencyPair = null; // Reset on exchange change
+});
+
+const executeTrade = async () => {
+    trade.value.currencyPair = selectedPair.value
+    console.log("trade", trade.value)
+  if (!firstBotId.value || !trade.value.currencyPair || !trade.value.amount) {
+    console.error('Missing required trade parameters');
+    return;
+  }
+
+  trade.value.loading = true;
+  try {
+    const result = await exchangeStore.manualTrade(firstBotId.value, {
+      exchange: trade.value.exchange,
+      side: trade.value.side,
+      currencyPair: trade.value.currencyPair,
+      amount: trade.value.amount
+    });
+    console.log('Trade successful:', result);
+  } catch (error) {
+    console.error('Trade failed:', error);
+  } finally {
+    trade.value.loading = false;
+  }
+};
+
+watch(() => trade.exchange, () => {
+  trade.currencyPair = null; // Reset currency pair when exchange changes
+});
+
 const getPriceDifferenceForSpread = (spreadPair) => {
   const cexPair = spreadPair.split(' / ')[0]
   const dexPair = spreadPair.split(' / ')[1]
@@ -157,6 +204,38 @@ const getPriceDifferenceForSpread = (spreadPair) => {
   const difference = Math.abs(cexPrice - dexPrice)
   return formatPrice(difference)
 }
+
+const expandedLog = ref(null);
+
+const toggleLogData = (index) => {
+  expandedLog.value = expandedLog.value === index ? null : index;
+};
+
+const getBorderColor = (color) => {
+  if (!color) return 'ring-gray-200 dark:ring-gray-700';
+  // You can add more color mappings here if needed
+  if (color.toLowerCase() === 'red') return 'ring-red-500';
+  if (color.toLowerCase() === 'green') return 'ring-green-500';
+  if (color.toLowerCase() === 'yellow') return 'ring-yellow-500';
+  return `ring-${color}-500`;
+};
+
+const formatTimestamp = (timestamp) => {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+};
+
+const logsForCurrentBot = computed(() => {
+  if (firstBotId.value && logStore.logs[firstBotId.value]) {
+    return logStore.logs[firstBotId.value];
+  }
+  return [];
+});
 </script>
 
 <template>
@@ -526,8 +605,76 @@ const getPriceDifferenceForSpread = (spreadPair) => {
                     </div>
                   </div>
                 </UCard>
+<!-- Manual Trade -->
+<UCard :ui="{ body: { padding: 'p-2' } }">
+  <div class="flex items-center space-x-3 mb-2">
+    <UIcon name="i-heroicons-wrench-screwdriver-20-solid" class="w-5 h-5 text-primary" />
+    <h4 class="font-medium">Manual Trade</h4>
+  </div>
+  <div class="space-y-4">
+    <div class="flex items-center gap-1 flex-wrap">
+      <div class="flex-1">
+        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Exchange</span>
+        <div class="grid grid-cols-2 gap-1 mt-1">
+          <UButton 
+            v-for="option in ['cex', 'dex']" 
+            :key="option" 
+            :label="option.toUpperCase()" 
+            size="xs" 
+            :variant="trade.exchange === option ? 'solid' : 'outline'" 
+            @click="() => {trade.exchange = option; selectedPair = availablePairs[0]}" 
+            class="w-full justify-center" 
+          />
+        </div>
+      </div>
+      <div class="flex-1">
+        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Side</span>
+        <div class="grid grid-cols-2 gap-1 mt-1">
+          <UButton 
+            v-for="option in ['buy', 'sell']" 
+            :key="option" 
+            :label="option.toUpperCase()" 
+            size="xs" 
+            :variant="trade.side === option ? 'solid' : 'outline'" 
+            @click="trade.side = option" 
+            class="w-full justify-center" 
+          />
+        </div>
+      </div>
+                                                  <div class="flex-1">
+        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Side</span>
+         <USelectMenu v-model="selectedPair" :items="availablePairs" class="text-xs" />
 
-                <!-- Spread Analysis Chart -->
+      </div>
+
+    </div>
+    <div class="flex items-center gap-4">
+      <UInput 
+        v-model.number="trade.amount" 
+        type="number" 
+        placeholder="Amount" 
+        class="flex-1" 
+      />
+      <UButton 
+        @click="executeTrade" 
+        color="primary" 
+        variant="solid" 
+        :loading="trade.loading"
+      >
+        Trade
+      </UButton>
+    </div>
+  </div>
+</UCard>
+
+
+
+
+
+
+
+
+               <!-- Spread Analysis Chart -->
                 <UCard>
                   <template #header>
                     <div class="flex items-center space-x-3">
@@ -546,11 +693,29 @@ const getPriceDifferenceForSpread = (spreadPair) => {
                 </UCard>
               </div>
             </template>
-            <template v-if="item.label === 'Arbitrage'">
-              <div class="text-center p-8">
-                <UIcon name="i-heroicons-wrench-screwdriver-20-solid" class="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500" />
-                <h3 class="mt-4 text-lg font-semibold text-gray-900 dark:text-white">Arbitrage View</h3>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">This section is under construction.</p>
+            <template v-if="item.label === 'Logs'">
+              <div class="h-[600px] overflow-y-auto space-y-2 pr-2 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600 [&::-webkit-scrollbar-thumb]:rounded-full">
+                <UCard v-for="(log, index) in logsForCurrentBot.slice().reverse()" :key="index" :ui="{ ring: `ring-1 ${getBorderColor(log.color)}`, body: { padding: 'p-2 sm:p-3' } }">
+                  <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                      <div class="flex items-center justify-between mb-1">
+                         <span class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ formatTimestamp(log.timestamp) }} - <span :style="{ color: log.color }">{{ log.source }}</span></span>
+                      </div>
+                      <p class="text-sm text-gray-800 dark:text-gray-200">{{ log.message }}</p>
+                    </div>
+                    <UButton v-if="log.data"
+                      :icon="expandedLog === index ? 'i-heroicons-chevron-up' : 'i-heroicons-code-bracket'"
+                      size="xs"
+                      color="gray"
+                      variant="ghost"
+                      class="ml-2"
+                      @click="toggleLogData(index)"
+                    />
+                  </div>
+                  <div v-if="expandedLog === index" class="mt-2">
+                    <pre class="text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded-md overflow-x-auto"><code>{{ JSON.stringify(log.data, null, 2) }}</code></pre>
+                  </div>
+                </UCard>
               </div>
             </template>
           </UCard>
