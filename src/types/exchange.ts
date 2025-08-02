@@ -48,6 +48,7 @@ export interface LoadingState {
   bots: boolean
   botState: boolean
   botConfig: boolean
+  currencyPairs: boolean
 }
 
 export interface LogEntry {

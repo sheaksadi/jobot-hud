@@ -1,10 +1,11 @@
-import { useLogStore } from './logStore';
+
 import axiosInstance from '../axios.js';
 import { defineStore } from 'pinia';
+import { useLogStore } from './logStore';
 import { socket } from '../socket.js';
 import type { Liquidity, LiquidityResponse, PriceData, AllPricesResponse, PriceUpdateData, BotState, BotConfig, ExchangeState, ManualTradeArg } from '../types/exchange';
 
-import { useLogStore } from './logStore';
+
 
 export const useExchangeStore = defineStore('exchange', {
   state: (): ExchangeState => ({
